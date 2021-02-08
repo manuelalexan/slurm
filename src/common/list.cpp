@@ -35,18 +35,21 @@
  *  Refer to "list.h" for documentation on public functions.
  *****************************************************************************/
 
-#include "config.h"
 
 #include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-#include "list.h"
-#include "log.h"
-#include "macros.h"
-#include "xassert.h"
-#include "xmalloc.h"
+extern "C"
+{
+	#include "config.h"
+	#include "list.h"
+	#include "log.h"
+	#include "macros.h"
+	#include "xassert.h"
+	#include "xmalloc.h"
+}
 
 /*
 ** Define slurm-specific aliases for use by plugins, see slurm_xlator.h
@@ -89,12 +92,15 @@ strong_alias(list_delete_item,	slurm_list_delete_item);
 #define LIST_MAGIC 0xDEADBEEF
 #define LIST_ITR_MAGIC 0xDEADBEFF
 
-#define list_alloc() xmalloc(sizeof(struct xlist))
-#define list_free(_l) xfree(l)
-#define list_node_alloc() xmalloc(sizeof(struct listNode))
-#define list_node_free(_p) xfree(_p)
-#define list_iterator_alloc() xmalloc(sizeof(struct listIterator))
-#define list_iterator_free(_i) xfree(_i)
+extern "C"
+{
+	#define list_alloc() xmalloc(sizeof(struct xlist))
+	#define list_free(_l) xfree(l)
+	#define list_node_alloc() xmalloc(sizeof(struct listNode))
+	#define list_node_free(_p) xfree(_p)
+	#define list_iterator_alloc() xmalloc(sizeof(struct listIterator))
+	#define list_iterator_free(_i) xfree(_i)
+}
 
 /****************
  *  Data Types  *
@@ -146,10 +152,9 @@ static int _list_mutex_is_locked (pthread_mutex_t *mutex);
 
 /* list_create()
  */
-List
-list_create (ListDelF f)
+extern "C" List list_create (ListDelF f)
 {
-	List l = list_alloc();
+	List l = static_cast<List>(list_alloc());
 
 	l->magic = LIST_MAGIC;
 	l->head = NULL;
@@ -165,7 +170,7 @@ list_create (ListDelF f)
 
 /* list_destroy()
  */
-void
+extern "C" void
 list_destroy (List l)
 {
 	ListIterator i, iTmp;
@@ -199,7 +204,7 @@ list_destroy (List l)
 
 /* list_is_empty()
  */
-int
+extern "C" int
 list_is_empty (List l)
 {
 	int n;
@@ -217,7 +222,7 @@ list_is_empty (List l)
  * Return the number of items in list [l].
  * If [l] is NULL, return 0.
  */
-int list_count(List l)
+extern "C" int list_count(List l)
 {
 	int n;
 
@@ -232,7 +237,7 @@ int list_count(List l)
 	return n;
 }
 
-List list_shallow_copy(List l)
+extern "C" List list_shallow_copy(List l)
 {
 	List m = list_create(NULL);
 	ListNode p;
@@ -255,7 +260,7 @@ List list_shallow_copy(List l)
 
 /* list_append()
  */
-void *
+extern "C" void *
 list_append (List l, void *x)
 {
 	void *v;
@@ -267,12 +272,15 @@ list_append (List l, void *x)
 	v = _list_append_locked(l, x);
 	slurm_mutex_unlock(&l->mutex);
 
+	unsigned int count = list_count(l);
+	printf("Appended element to list. list count: %d\n", count);
+
 	return v;
 }
 
 /* list_append_list()
  */
-int
+extern "C" int
 list_append_list (List l, List sub)
 {
 	ListIterator itr;
@@ -301,7 +309,7 @@ list_append_list (List l, List sub)
  *  Note: list [sub] may be returned empty, but not destroyed.
  *  Returns a count of the number of items added to list [l].
  */
-int list_transfer_max(List l, List sub, int max)
+extern "C" int list_transfer_max(List l, List sub, int max)
 {
 	void *v;
 	int n = 0;
@@ -327,14 +335,14 @@ int list_transfer_max(List l, List sub, int max)
  *  Note: list [sub] will be returned empty, but not destroyed.
  *  Returns a count of the number of items added to list [l].
  */
-int list_transfer(List l, List sub)
+extern "C" int list_transfer(List l, List sub)
 {
 	return list_transfer_max(l, sub, 0);
 }
 
 /* list_prepend()
  */
-void *
+extern "C" void *
 list_prepend (List l, void *x)
 {
 	void *v;
@@ -352,7 +360,7 @@ list_prepend (List l, void *x)
 
 /* list_find_first()
  */
-void *
+extern "C" void *
 list_find_first (List l, ListFindF f, void *key)
 {
 	ListNode p;
@@ -377,7 +385,7 @@ list_find_first (List l, ListFindF f, void *key)
 
 /* list_remove_first()
  */
-void *
+extern "C" void *
 list_remove_first (List l, ListFindF f, void *key)
 {
 	ListNode *pp;
@@ -405,7 +413,7 @@ list_remove_first (List l, ListFindF f, void *key)
 
 /* list_delete_all()
  */
-int
+extern "C" int
 list_delete_all (List l, ListFindF f, void *key)
 {
 	ListNode *pp;
@@ -437,7 +445,7 @@ list_delete_all (List l, ListFindF f, void *key)
 
 /* list_delete_ptr()
  */
-int list_delete_ptr(List l, void *key)
+extern "C" int list_delete_ptr(List l, void *key)
 {
 	ListNode *pp;
 	void *v;
@@ -467,20 +475,20 @@ int list_delete_ptr(List l, void *key)
 
 /* list_for_each()
  */
-int
+extern "C" int
 list_for_each (List l, ListForF f, void *arg)
 {
 	int max = -1;	/* all values */
 	return list_for_each_max(l, &max, f, arg, 1);
 }
 
-int list_for_each_nobreak(List l, ListForF f, void *arg)
+extern "C" int list_for_each_nobreak(List l, ListForF f, void *arg)
 {
 	int max = -1;	/* all values */
 	return list_for_each_max(l, &max, f, arg, 0);
 }
 
-int list_for_each_max(List l, int *max, ListForF f, void *arg,
+extern "C" int list_for_each_max(List l, int *max, ListForF f, void *arg,
 		      int break_on_fail)
 {
 	ListNode p;
@@ -511,7 +519,7 @@ int list_for_each_max(List l, int *max, ListForF f, void *arg,
 
 /* list_flush()
  */
-int
+extern "C" int
 list_flush (List l)
 {
 	ListNode *pp;
@@ -537,7 +545,7 @@ list_flush (List l)
 
 /* list_push()
  */
-void *
+extern "C" void *
 list_push (List l, void *x)
 {
 	void *v;
@@ -565,7 +573,7 @@ typedef int (*ConstListCmpF) (__const void *, __const void *);
  * This function uses the libC qsort().
  *
  */
-void
+extern "C" void
 list_sort(List l, ListCmpF f)
 {
 	char **v;
@@ -585,11 +593,11 @@ list_sort(List l, ListCmpF f)
 	}
 
 	lsize = l->count;
-	v = xmalloc(lsize * sizeof(char *));
+	v = static_cast<char **>(xmalloc(lsize * sizeof(char *)));
 
 	n = 0;
 	while ((e = _list_pop_locked(l))) {
-		v[n] = e;
+		v[n] = static_cast<char *>(e);
 		++n;
 	}
 
@@ -615,7 +623,7 @@ list_sort(List l, ListCmpF f)
 
 /* list_pop()
  */
-void *
+extern "C" void *
 list_pop (List l)
 {
 	void *v;
@@ -632,7 +640,7 @@ list_pop (List l)
 
 /* list_peek()
  */
-void *
+extern "C" void *
 list_peek (List l)
 {
 	void *v;
@@ -650,7 +658,7 @@ list_peek (List l)
 /*
  * list_peek_last()
  */
-void *list_peek_last(List l)
+extern "C" void *list_peek_last(List l)
 {
 	void *v;
 
@@ -667,7 +675,7 @@ void *list_peek_last(List l)
 
 /* list_enqueue()
  */
-void *
+extern "C" void *
 list_enqueue (List l, void *x)
 {
 	void *v;
@@ -685,7 +693,7 @@ list_enqueue (List l, void *x)
 
 /* list_dequeue()
  */
-void *
+extern "C" void *
 list_dequeue (List l)
 {
 	void *v;
@@ -702,13 +710,13 @@ list_dequeue (List l)
 
 /* list_iterator_create()
  */
-ListIterator
+extern "C" ListIterator
 list_iterator_create (List l)
 {
 	ListIterator i;
 
 	xassert(l != NULL);
-	i = list_iterator_alloc();
+	i = static_cast<ListIterator>(list_iterator_alloc());
 
 	i->magic = LIST_ITR_MAGIC;
 	i->list = l;
@@ -727,7 +735,7 @@ list_iterator_create (List l)
 
 /* list_iterator_reset()
  */
-void
+extern "C" void
 list_iterator_reset (ListIterator i)
 {
 	xassert(i != NULL);
@@ -743,7 +751,7 @@ list_iterator_reset (ListIterator i)
 
 /* list_iterator_destroy()
  */
-void
+extern "C" void
 list_iterator_destroy (ListIterator i)
 {
 	ListIterator *pi;
@@ -780,7 +788,7 @@ static void * _list_next_locked(ListIterator i)
 
 /* list_next()
  */
-void *list_next (ListIterator i)
+extern "C" void *list_next (ListIterator i)
 {
 	void *rc;
 
@@ -798,7 +806,7 @@ void *list_next (ListIterator i)
 
 /* list_peek_next()
  */
-void *
+extern "C" void *
 list_peek_next (ListIterator i)
 {
 	ListNode p;
@@ -817,7 +825,7 @@ list_peek_next (ListIterator i)
 
 /* list_insert()
  */
-void *
+extern "C" void *
 list_insert (ListIterator i, void *x)
 {
 	void *v;
@@ -836,7 +844,7 @@ list_insert (ListIterator i, void *x)
 
 /* list_find()
  */
-void *
+extern "C" void *
 list_find (ListIterator i, ListFindF f, void *key)
 {
 	void *v;
@@ -858,7 +866,7 @@ list_find (ListIterator i, ListFindF f, void *key)
 
 /* list_remove()
  */
-void *
+extern "C" void *
 list_remove (ListIterator i)
 {
 	void *v = NULL;
@@ -877,7 +885,7 @@ list_remove (ListIterator i)
 
 /* list_delete_item()
  */
-int
+extern "C" int
 list_delete_item (ListIterator i)
 {
 	void *v;
@@ -911,7 +919,7 @@ static void *_list_node_create(List l, ListNode *pp, void *x)
 	xassert(pp != NULL);
 	xassert(x != NULL);
 
-	p = list_node_alloc();
+	p = static_cast<ListNode>(list_node_alloc());
 
 	p->data = x;
 	if (!(p->next = *pp)) {
