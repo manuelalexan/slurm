@@ -273,7 +273,7 @@ list_append (List l, void *x)
 	slurm_mutex_unlock(&l->mutex);
 
 	unsigned int count = list_count(l);
-	printf("Appended element to list. list count: %d\n", count);
+	printf("(C++) Appended element to list. list count: %d\n", count);
 
 	return v;
 }

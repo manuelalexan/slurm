@@ -1,0 +1,7 @@
+#!/usr/bin/bash
+
+  date
+  /usr/local/bin/srun -n6 -t1 ./test1.116.prog
+  date
+  echo TEST_COMPLETE
+

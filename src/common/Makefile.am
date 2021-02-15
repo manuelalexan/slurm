@@ -31,7 +31,7 @@ libcommon_la_SOURCES = 			\
 	strnatcmp.c strnatcmp.h		\
 	forward.c forward.h     	\
 	strlcpy.c strlcpy.h		\
-	list.c list.h 			\
+	list.cpp list.h 			\
 	xhash.c xhash.h			\
 	net.c net.h                     \
 	log.c log.h			\
