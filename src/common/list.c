@@ -109,7 +109,7 @@ struct listIterator {
 	unsigned int          magic;        /* sentinel for asserting validity   */
 	struct xlist         *list;         /* the list being iterated           */
 	unsigned int          pos;          /* the next node to be iterated      */
-    unsigned int          prev;         /* the previus node in the iteration */
+	unsigned int          prev;         /* the previus node in the iteration */
 	struct listIterator  *iNext;        /* iterator chain for list_destroy() */
 };
 
@@ -182,11 +182,11 @@ list_destroy (List l)
 		i = iTmp;
 	}
 	pp = l->arr;
-	while (((char *)pp) < ((char *)l->arr) + (l->size * LIST_NODE_SIZE)) {
+	while (pp < &l->arr[l->size]) {
 		if (*pp && l->fDel) {
 			l->fDel(*pp);
 		}
-		pp = (Node *)(((char *)pp) + LIST_NODE_SIZE);
+		pp = pp + 1;
 	}
 	l->magic = ~LIST_MAGIC;
 	list_array_free(l->arr);
@@ -244,7 +244,7 @@ List list_shallow_copy(List l)
 	}
 
 	m->size = l->size;
-	memcpy((char*) m->arr, (char*) l->arr, l->size * LIST_NODE_SIZE);
+	memcpy(m->arr, l->arr, l->size * LIST_NODE_SIZE);
 
 	slurm_mutex_unlock(&m->mutex);
 	slurm_mutex_unlock(&l->mutex);
@@ -363,7 +363,7 @@ list_find_first (List l, ListFindF f, void *key)
 	slurm_mutex_lock(&l->mutex);
 	xassert(l->magic == LIST_MAGIC);
 
-	for (p = l->arr; ((char *)p) < ((char *)l->arr) + (l->size * LIST_NODE_SIZE); p = (Node *)(((char *)p) + LIST_NODE_SIZE)) {
+	for (p = l->arr; p < &l->arr[l->size]; p++) {
 		if (f(*p, key)) {
 			v = *p;
 			break;
@@ -390,7 +390,7 @@ list_remove_first (List l, ListFindF f, void *key)
 
 	i = 0;
 	while (i < l->size) {
-		if (f(*((Node *)(((char *)l->arr) + (i * LIST_NODE_SIZE))), key)) {
+		if (f(l->arr[i], key)) {
 			v = _list_node_destroy(l, i);
 			break;
 		} else {
@@ -418,7 +418,7 @@ list_delete_all (List l, ListFindF f, void *key)
 
 	i = 0;
 	while (i < l->size) {
-		if (f(*(Node*)((((char*)l->arr) + (i * LIST_NODE_SIZE))), key)) {
+		if (f(l->arr[i], key)) {
 			if ((v = _list_node_destroy(l, i))) {
 				if (l->fDel) {
 					l->fDel(v);
@@ -450,7 +450,7 @@ int list_delete_ptr(List l, void *key)
 
 	i = 0;
 	while (i < l->size) {
-		if (*((Node *)(((char*)l->arr) + (i * LIST_NODE_SIZE))) == key) {
+		if (l->arr[i] == key) {
 			if ((v = _list_node_destroy(l, i))) {
 				if (l->fDel) {
 					l->fDel(v);
@@ -493,7 +493,7 @@ int list_for_each_max(List l, int *max, ListForF f, void *arg,
 	slurm_mutex_lock(&l->mutex);
 	xassert(l->magic == LIST_MAGIC);
 
-	for (pp = l->arr; (*max == -1 || n < *max) && pp < (Node *)(((char *)l->arr) + l->size * LIST_NODE_SIZE); pp = (Node *)(((char*)pp) + LIST_NODE_SIZE)) {
+	for (pp = l->arr; (*max == -1 || n < *max) && pp < &l->arr[l->size]; pp = pp + 1) {
 		n++;
 		if (f(*pp, arg) < 0) {
 			failed = true;
@@ -525,9 +525,9 @@ list_flush (List l)
 
 	if (l->fDel) {
 		pp = l->arr;
-		while (pp < (Node *)(((char *)l->arr) + (l->size * LIST_NODE_SIZE))) {
+		while (pp < &l->arr[l->size]) {
 			l->fDel(*pp);
-			pp = (Node *)(((char *)pp) + LIST_NODE_SIZE);
+			pp = pp + 1;
 			n++;
 		}
 	}
@@ -540,7 +540,7 @@ list_flush (List l)
 	for (i = l->iNext; i; i = i->iNext) {
 		xassert(i->magic == LIST_ITR_MAGIC);
 		i->pos = 0;
-        i->prev = 0;
+		i->prev = 0;
 	}
 
 	slurm_mutex_unlock(&l->mutex);
@@ -601,7 +601,7 @@ list_sort(List l, ListCmpF f)
 	for (i = l->iNext; i; i = i->iNext) {
 		xassert(i->magic == LIST_ITR_MAGIC);
 		i->pos = 0;
-        i->prev = 0;
+		i->prev = 0;
 	}
 
 	slurm_mutex_unlock(&l->mutex);
@@ -627,8 +627,8 @@ void list_flip(List l)
 
 	index = 0;
 	while (index < l->size/2) {
-		pp = ((Node *)(((char *)l->arr) + (index * LIST_NODE_SIZE)));
-		pp_2 = ((Node *)(((char *)l->arr) + ((l->size - 1 - index) * LIST_NODE_SIZE)));
+		pp = &l->arr[index];
+		pp_2 = &l->arr[l->size - 1 - index];
 		temp = *pp;
 		*pp = *pp_2;
 		*pp_2 = temp;
@@ -676,7 +676,7 @@ list_peek (List l)
 	slurm_mutex_lock(&l->mutex);
 	xassert(l->magic == LIST_MAGIC);
 
-	v = l->size > 0 ? *l->arr : NULL;	
+	v = l->size > 0 ? l->arr[0] : NULL;	
 	slurm_mutex_unlock(&l->mutex);
 
 	return v;
@@ -693,7 +693,7 @@ void *list_peek_last(List l)
 	slurm_mutex_lock(&l->mutex);
 	xassert(l->magic == LIST_MAGIC);
 
-	v = l->size > 0 ? *((Node *)(((char*)l->arr) + ((l->size - 1) * LIST_NODE_SIZE))) : NULL;
+	v = l->size > 0 ? l->arr[l->size - 1] : NULL;
 
 	slurm_mutex_unlock(&l->mutex);
 
@@ -751,7 +751,7 @@ list_iterator_create (List l)
 	xassert(l->magic == LIST_MAGIC);
 
 	i->pos = 0;
-    i->prev = 0;
+	i->prev = 0;
 	i->iNext = l->iNext;
 	l->iNext = i;
 
@@ -771,7 +771,7 @@ list_iterator_reset (ListIterator i)
 	xassert(i->list->magic == LIST_MAGIC);
 
 	i->pos = 0;
-    i->prev = 0;
+	i->prev = 0;
 
 	slurm_mutex_unlock(&i->list->mutex);
 }
@@ -808,8 +808,8 @@ static void * _list_next_locked(ListIterator i)
 	if (i->prev != i->pos) {
 		i->prev = i->prev + 1;
     }
-	if ((i->pos < i->list->size)) {         
-		p = (Node *)(((char*)i->list->arr) + (i->pos * LIST_NODE_SIZE));
+	if ((i->pos < i->list->size)) {             
+		p = &i->list->arr[i->pos];
 		i->pos = i->pos + 1;
 	}
 
@@ -846,7 +846,7 @@ list_peek_next (ListIterator i)
 	slurm_mutex_lock(&i->list->mutex);
 	xassert(i->list->magic == LIST_MAGIC);
 
-	p = (Node *)(((char*)i->list->arr) + (i->pos * LIST_NODE_SIZE));
+	p = &i->list->arr[i->pos];
 
 	return (i->pos < i->list->size ? *p : NULL);
 }
@@ -1003,13 +1003,12 @@ static void *_list_node_create(List l, unsigned int p, void *x)
 
 	if (_list_grow(l) < 0) {
 		return NULL;
-
 	}
 
-	Node *pp = (Node *)(((char *)l->arr) + (p * LIST_NODE_SIZE));
+	Node *pp = &l->arr[p];
 
-	size_t move_size = (((char *)l->arr) + ((l->size - 1) * LIST_NODE_SIZE)) - ((char *)pp);
-	memmove(((char*)pp) + LIST_NODE_SIZE, pp, move_size);
+	size_t move_size = &l->arr[l->size - 1] - pp;
+	memmove(pp + 1, pp, move_size);
 
 	*pp = x;
 
@@ -1045,12 +1044,12 @@ static void *_list_node_destroy(List l, unsigned int p)
 		return NULL;
 	}
 
-	pp = (Node *)(((char *)l->arr) + p * LIST_NODE_SIZE);
+	pp = &l->arr[p];
 
 	v = *pp;
 	
-	size_t move_size = (((char *)l->arr) + l->size * LIST_NODE_SIZE) - (((char *)pp)+ LIST_NODE_SIZE);
-	memmove(pp, ((char *)pp) + LIST_NODE_SIZE, move_size);
+	size_t move_size = (char *)(&l->arr[l->size]) - (char *)(pp + 1);
+	memmove(pp, pp + 1, move_size);
 
 	l->size = MAX(0, ((int)l->size) - 1);
 
